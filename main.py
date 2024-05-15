@@ -1,56 +1,42 @@
-from Crypto.Util.number import getPrime, GCD, inverse
+import random
+
 from common_modulus import common_modulus
 from wiener import wiener
-def generate_rsa_keys():
-    p = getPrime(1024)
-    q = getPrime(1024)
-    n = p * q
-    phi = (p - 1) * (q - 1)
-    e = 665537
-    while e < phi:
-        if GCD(e, phi) == 1:
-            break
-        else:
-            e += 1
-    e1 = e
-    d1 = inverse(e1, phi)
-    e += 1
-    while e < phi:
-        if GCD(e, phi) == 1:
-            break
-        else:
-            e += 1
-    e2 = e
-    d2 = inverse(e2, phi)
-    return n, e1, d1, e2, d2
+from tools import generate_rsa_keys, vuln_keys
 
 def main():
-    n, e1, d1, e2, d2 = generate_rsa_keys()
-
-    print("General module n:")
-    print("n =", n)
-
-    print("\nUser 1:")
-    print("e1 =", e1)
-    print("d1 =", d1)
-
-    print("\nUser 2:")
-    print("e2 =", e2)
-    print("d2 =", d2)
-
     print("\n1.The case of general module")
     print("2.Wiener's attack")
     #choice = input("Select an option:")
-    choice = "1"
+    choice = "2"
     if choice == "1":
+        n, e1, d1, e2, d2 = generate_rsa_keys()
+        print("\nUser 1:")
+        print("n =", n)
+        print("e1 =", e1)
+        print("d1 =", d1)
+
+        print("\nUser 2:")
+        print("n =", n)
+        print("e2 =", e2)
+        print("d2 =", d2)
+
         d, p, q = common_modulus(n, e2, d2, e1)
         if d == d1:
-            print("d1: ", d)
+            print("\nd1: ", d)
             print("p = ", p)
             print("q = ", q)
         print("Done")
     elif choice == "2":
-        wiener()
+        k = random.randint(0,3)
+        e, n, d = vuln_keys(k)
+        print("\nUser:")
+        print("n =", n)
+        print("e =", e)
+        print("d =", d)
+        tmp_d = wiener(e, n)
+        if d == tmp_d:
+            print("d =", d)
     else:
         print("Wrong_option")
 
