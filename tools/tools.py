@@ -1,3 +1,10 @@
+import os
+import random
+import string
+import struct
+
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Util.number import getPrime, GCD, inverse
 
 
@@ -54,3 +61,59 @@ def vuln_keys(k):
         )
     ]
     return TEST_RSA_KEYS[k]
+
+
+def run_rsa():
+    create_random_files(num_files=4, min_size=100, max_size=1000, output_dir="text_dir")
+
+
+def generate_random_content(size):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=size))
+
+
+def pad_content(content):
+    pad_length = 16 - (len(content) % 16)
+    return content + chr(0x03) * pad_length
+
+
+def create_random_files(num_files, min_size, max_size, output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    file_size = random.randint(min_size, max_size)
+    content = generate_random_content(file_size)
+    padded_content = pad_content(content)
+    original_size = len(content)
+    tmp_e = 3
+    print(tmp_e)
+    for i in range(num_files):
+        key = RSA.generate(2048, e=tmp_e)
+        public_key = key.publickey()
+        with open(os.path.join(output_dir, f'public_key{i + 1}.pem'), 'wb') as f:
+            f.write(public_key.export_key(format='PEM'))
+        file_name = os.path.join(output_dir, f"file_{i + 1}.txt")
+        aes_key = os.urandom(32)
+        iv = os.urandom(16)
+
+        encrypted_content = encrypt_aes(aes_key, iv, padded_content.encode())
+
+        encrypted_aes_key = encrypt_rsa(public_key, aes_key)
+        print(int.from_bytes(encrypted_aes_key, byteorder='big'))
+        with open(file_name, 'wb') as f:
+            f.write(struct.pack('<Q', original_size))
+            f.write(iv)
+            f.write(encrypted_aes_key)
+            f.write(encrypted_content)
+        print(
+            f"Created {file_name} with original size {original_size} bytes and final size {len(encrypted_content)} bytes.")
+
+
+def encrypt_aes(key, iv, content):
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return cipher.encrypt(content)
+
+
+def encrypt_rsa(public_key, data):
+    cipher = PKCS1_OAEP.new(public_key)
+    return cipher.encrypt(data)
+

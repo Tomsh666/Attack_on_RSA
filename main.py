@@ -2,13 +2,16 @@ import random
 
 from common_modulus import common_modulus
 from wiener import wiener
-from tools import generate_rsa_keys, vuln_keys
+from low_public_exponent import low_public_exponent
+from tools import generate_rsa_keys, vuln_keys, run_rsa
+
 
 def main():
     print("\n1.The case of general module")
     print("2.Wiener's attack")
+    print("3.Attack on RSA with Low Public Exponent")
     #choice = input("Select an option:")
-    choice = "2"
+    choice = "3"
     if choice == "1":
         n, e1, d1, e2, d2 = generate_rsa_keys()
         print("\nUser 1:")
@@ -37,8 +40,12 @@ def main():
         tmp_d = wiener(e, n)
         if d == tmp_d:
             print("d =", d)
+    elif choice == "3":
+        run_rsa()
+        low_public_exponent()
     else:
         print("Wrong_option")
+
 
 if __name__ == "__main__":
     main()
