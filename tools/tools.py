@@ -4,16 +4,16 @@ import string
 import struct
 
 from Crypto.PublicKey import RSA
-from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Cipher import AES
 from Crypto.Util.number import getPrime, GCD, inverse
+from Crypto.Util.Padding import unpad, pad
 
 
-def generate_rsa_keys():
+def generate_rsa_keys(e):
     p = getPrime(1024)
     q = getPrime(1024)
     n = p * q
     phi = (p - 1) * (q - 1)
-    e = 665537
     while e < phi:
         if GCD(e, phi) == 1:
             break
@@ -63,8 +63,8 @@ def vuln_keys(k):
     return TEST_RSA_KEYS[k]
 
 
-def run_rsa():
-    create_random_files(num_files=4, min_size=100, max_size=1000, output_dir="text_dir")
+def run_rsa(num_files, output_dir):
+    create_random_files(num_files, output_dir, min_size=100, max_size=1000)
 
 
 def generate_random_content(size):
@@ -76,33 +76,43 @@ def pad_content(content):
     return content + chr(0x03) * pad_length
 
 
-def create_random_files(num_files, min_size, max_size, output_dir):
+def unpad_content(padded_content):
+    return padded_content.rstrip(chr(0x03).encode('utf-8'))
+
+
+def create_random_files(num_files, output_dir, min_size, max_size):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    file_size = random.randint(min_size, max_size)
-    content = generate_random_content(file_size)
-    padded_content = pad_content(content)
-    original_size = len(content)
     tmp_e = 3
-    print(tmp_e)
+    aes_key = os.urandom(32)
+    iv = os.urandom(16)
+    print("e =", tmp_e)
+    print("AES KEY =", int.from_bytes(aes_key, byteorder='big'))
     for i in range(num_files):
         key = RSA.generate(2048, e=tmp_e)
         public_key = key.publickey()
         with open(os.path.join(output_dir, f'public_key{i + 1}.pem'), 'wb') as f:
             f.write(public_key.export_key(format='PEM'))
         file_name = os.path.join(output_dir, f"file_{i + 1}.txt")
-        aes_key = os.urandom(32)
-        iv = os.urandom(16)
+        file_size = random.randint(min_size, max_size)
+        content = generate_random_content(file_size)
+        padded_content = pad_content(content)
+        original_size = len(content)
 
-        encrypted_content = encrypt_aes(aes_key, iv, padded_content.encode())
+        input_file_name = os.path.join(output_dir, f"plaintext_{i + 1}.txt")
+        with open(input_file_name, 'w') as f:
+            f.write(content)
+
+        encrypted_content = encrypt_aes(aes_key, iv, content.encode())
 
         encrypted_aes_key = encrypt_rsa(public_key, aes_key)
-        print(int.from_bytes(encrypted_aes_key, byteorder='big'))
+        encrypted_aes_key_byte = encrypted_aes_key.to_bytes((encrypted_aes_key.bit_length() + 7) // 8, 'big')
+        print("encrypted AES KEY =", encrypted_aes_key)
         with open(file_name, 'wb') as f:
             f.write(struct.pack('<Q', original_size))
             f.write(iv)
-            f.write(encrypted_aes_key)
+            f.write(encrypted_aes_key_byte)
             f.write(encrypted_content)
         print(
             f"Created {file_name} with original size {original_size} bytes and final size {len(encrypted_content)} bytes.")
@@ -110,10 +120,25 @@ def create_random_files(num_files, min_size, max_size, output_dir):
 
 def encrypt_aes(key, iv, content):
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    return cipher.encrypt(content)
+    return cipher.encrypt(pad(content, AES.block_size))
+
+
+def decrypt_aes(key, iv, num_files, output_dir):
+    for i in range(num_files):
+        file_name = os.path.join(output_dir, f"file_{i + 1}.txt")
+        output_file_name = os.path.join(output_dir, f"output_file_{i + 1}.txt")
+        with open(file_name, 'rb') as f:
+            original_size = struct.unpack('<Q', f.read(8))[0]
+            iv = f.read(16)
+            encrypted_aes_key = f.read(96)
+            ciphertext = f.read()
+        cipher = AES.new(key.to_bytes((key.bit_length() + 7) // 8, 'big'), AES.MODE_CBC, iv)
+        plaintext = unpad(cipher.decrypt(ciphertext), AES.block_size)
+        with open(output_file_name, 'wb') as f:
+            f.write(plaintext)
 
 
 def encrypt_rsa(public_key, data):
-    cipher = PKCS1_OAEP.new(public_key)
-    return cipher.encrypt(data)
+    text = int.from_bytes(data, byteorder='big')
+    return pow(text, public_key.e, public_key.n)
 
