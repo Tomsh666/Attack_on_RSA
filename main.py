@@ -12,8 +12,7 @@ def main():
     print("2.Wiener's attack")
     print("3.Attack on RSA with Low Public Exponent")
     print("4.Generate parameters for RSA")
-    #choice = input("Select an option:")
-    choice = "4"
+    choice = input("Select an option:")
     if choice == "1":
         n, e1, d1, e2, d2 = generate_rsa_keys(665537)
         print("\nUser 1:")
@@ -42,15 +41,18 @@ def main():
         tmp_d = wiener(e, n)
         if d == tmp_d:
             print("d =", d)
+        print("Done")
     elif choice == "3":
         run_rsa(4, "text_dir")
         m, iv, original_size = low_public_exponent()
         decrypt_aes(m, iv, 4, "text_dir")
+        print("Done")
     elif choice == "4":
         n, e, d = generate_safe_params(1024)
-        print(n)
-        print(e)
-        print(d)
+        print("n =", n)
+        print("e =", e)
+        print("d =", d)
+        print("Done")
     else:
         print("Wrong_option")
 
